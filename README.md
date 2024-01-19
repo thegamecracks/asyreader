@@ -1,5 +1,9 @@
 # asyreader
 
+[![](https://img.shields.io/github/actions/workflow/status/thegamecracks/asyreader/black.yml?style=flat-square&label=black)](https://black.readthedocs.io/en/stable/)
+[![](https://img.shields.io/github/actions/workflow/status/thegamecracks/asyreader/pyright.yml?style=flat-square&label=pyright)](https://microsoft.github.io/pyright/#/)
+[![](https://img.shields.io/github/actions/workflow/status/thegamecracks/asyreader/pytest.yml?style=flat-square&logo=pytest&label=tests)](https://docs.pytest.org/en/stable/)
+
 ```py
 import asyncio
 from asyreader import AsyncReader
