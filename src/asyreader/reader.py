@@ -63,20 +63,27 @@ class AsyncReader(Generic[T_co]):
 
     _read_queue: queue.Queue[_ReaderItem[T_co] | None]
     """A queue of read requests to be resolved."""
+
     _thread: threading.Thread | None
     """The thread to handle reading from the file."""
+
     _file: Readable | None
     """The file being read by the thread.
 
-    This file should be closed once the thread is done."""
+    This file should be closed once the thread is done.
+
+    """
+
     _start_fut: concurrent.futures.Future[None] | None
     """A future to signal when the thread has started.
 
     If an error occurs during startup, the exception should be set here.
 
     """
+
     _is_closing: bool
     """Indicates when the reader has started closing."""
+
     _close_fut: concurrent.futures.Future[None] | None
     """A future to signal when the thread has closed.
 
