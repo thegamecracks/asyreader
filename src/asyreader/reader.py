@@ -1,6 +1,7 @@
 import asyncio
 import concurrent.futures
 import contextlib
+import functools
 import queue
 import threading
 from typing import (
@@ -8,31 +9,34 @@ from typing import (
     Callable,
     Generic,
     NamedTuple,
+    ParamSpec,
     Protocol,
     Self,
     TypeVar,
+    cast,
     runtime_checkable,
 )
 
+P = ParamSpec("P")
 T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 
 
 @runtime_checkable
-class Readable(Protocol, Generic[T_co]):
+class Readable(Protocol, Generic[P, T_co]):
     def close(self) -> Any:
         ...
 
-    def read(self, size: int | None = -1, /) -> T_co:
+    def read(self, *args: P.args, **kwargs: P.kwargs) -> T_co:
         ...
 
 
 class _ReaderItem(NamedTuple, Generic[T_co]):
     fut: concurrent.futures.Future[T_co]
-    size: int | None
+    callback: Callable[[], T_co]
 
 
-class AsyncReader(Generic[T_co]):
+class AsyncReader(Generic[P, T_co]):
     """Allows reading from a file in a different thread.
 
     >>> reader = AsyncReader(open("file.txt"))
@@ -67,7 +71,7 @@ class AsyncReader(Generic[T_co]):
     _thread: threading.Thread | None
     """The thread to handle reading from the file."""
 
-    _file: Readable | None
+    _file: Readable[P, T_co] | None
     """The file being read by the thread.
 
     This file should be closed once the thread is done.
@@ -91,7 +95,7 @@ class AsyncReader(Generic[T_co]):
 
     """
 
-    def __init__(self, opener: Readable[T_co] | Callable[[], Readable[T_co]]):
+    def __init__(self, opener: Readable[P, T_co] | Callable[[], Readable[P, T_co]]):
         self.opener = opener
 
         self._read_queue = queue.Queue()
@@ -132,8 +136,8 @@ class AsyncReader(Generic[T_co]):
         self._thread.start()
         await self._wrap_future(self._start_fut)
 
-    async def read(self, size: int | None = -1) -> T_co:
-        """Read size characters from the file.
+    async def read(self, *args: P.args, **kwargs: P.kwargs) -> T_co:
+        """Request the file to be read by the reader thread.
 
         Any exception raised during the read will be propagated here.
         Keep in mind that exceptions do not close the reader so using
@@ -153,8 +157,12 @@ class AsyncReader(Generic[T_co]):
         elif self._close_fut.done():
             raise ValueError("Reader thread has closed")
 
+        assert self._file is not None
+        callback = functools.partial(self._file.read, *args, **kwargs)
+        callback = cast(Callable[[], T_co], callback)
+
         fut = concurrent.futures.Future[T_co]()
-        self._read_queue.put_nowait(_ReaderItem(fut, size))
+        self._read_queue.put_nowait(_ReaderItem(fut, callback))
         return await self._wrap_future(fut)
 
     async def close(self) -> None:
@@ -197,7 +205,7 @@ class AsyncReader(Generic[T_co]):
         else:
             self._set_closed(None)
 
-    def _open_file(self) -> Readable[T_co]:
+    def _open_file(self) -> Readable[P, T_co]:
         if not isinstance(self.opener, Readable):
             return self.opener()
         return self.opener
@@ -220,7 +228,7 @@ class AsyncReader(Generic[T_co]):
                 break
 
             try:
-                data = self._file.read(item.size)
+                data = item.callback()
             except BaseException as e:
                 # This exception will be the user's responsibility to deal with
                 if not item.fut.done():

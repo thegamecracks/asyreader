@@ -52,7 +52,7 @@ class ExceptionReader(Readable):
     def close(self) -> None:
         ...
 
-    def read(self, size: int | None = -1) -> NoReturn:
+    def read(self) -> NoReturn:
         raise self.exc
 
 
