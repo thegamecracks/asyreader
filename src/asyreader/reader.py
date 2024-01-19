@@ -120,7 +120,10 @@ class AsyncReader(Generic[T_co]):
         :raises RuntimeError: The reader is already running.
 
         """
-        if self._thread is not None and self._thread.is_alive():
+        if self._close_fut is not None and not self._close_fut.done():
+            # Technically this can start a second thread while the last
+            # one is still alive, but it shouldn't be doing anything
+            # after this is set.
             raise RuntimeError("Reader is already running")
 
         self._thread = threading.Thread(target=self._read_in_background)
