@@ -258,7 +258,6 @@ class AsyncReader(Generic[T_co]):
         with contextlib.suppress(queue.Empty):
             while True:
                 item = self._read_queue.get_nowait()
-                if item is None:
-                    continue
-                elif not item.fut.done():
+                if item is not None and not item.fut.done():
                     item.fut.set_exception(ValueError("Reader is being closed"))
+                self._read_queue.task_done()
