@@ -69,13 +69,6 @@ class AsyncReader(Generic[T_co]):
     """The file being read by the thread.
 
     This file should be closed once the thread is done."""
-    _task: asyncio.Task | None
-    """The current task if opened by a context manager.
-
-    If an error occurred in the thread, this task should be cancelled
-    so the context manager can propagate the exception.
-
-    """
     _start_fut: concurrent.futures.Future[None] | None
     """A future to signal when the thread has started.
 
@@ -102,15 +95,11 @@ class AsyncReader(Generic[T_co]):
         self._close_fut = None
 
     async def __aenter__(self) -> Self:
-        self._task = asyncio.current_task()
         await self.start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, tb) -> None:
-        try:
-            await self.close()
-        finally:
-            self._task = None
+        await self.close()
 
     async def start(self) -> None:
         """Start and wait for the reader to be ready.
