@@ -243,7 +243,7 @@ class AsyncReader(Generic[T_co]):
     def _close_callback(self, fut: concurrent.futures.Future) -> None:
         if fut.exception() and self._task is not None:
             # Interrupt the current task so close() can propagate the exception
-            self._task.cancel()
+            self._task.get_loop().call_soon_threadsafe(self._task.cancel)
 
     def _cancel_queue(self) -> None:
         with contextlib.suppress(queue.Empty):
