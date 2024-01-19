@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=60", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asyreader"
+description = "A transparent asyncio wrapper over blocking file-like objects"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "thegamecracks" }]
+license = { text = "MIT" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: AsyncIO",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.4", "pytest-asyncio>=0.23.3"]
+
+[project.urls]
+"Homepage" = "https://github.com/thegamecracks/asyreader"
+"Issue Tracker" = "https://github.com/thegamecracks/asyreader/issues"
+
+[tool.setuptools_scm]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
