@@ -87,7 +87,7 @@ class AsyncReader(Generic[T_co]):
     _close_fut: concurrent.futures.Future[None] | None
     """A future to signal when the thread has closed.
 
-    If an error occurred in the thread, the exception should be set here.
+    If an error occurs in the thread, the exception should be set here.
 
     """
 
