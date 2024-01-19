@@ -82,16 +82,13 @@ async def test_exception_on_read():
 @pytest.mark.asyncio
 async def test_base_exception_on_read():
     readable = ExceptionReader(BaseExceptionTest())
+    reader = AsyncReader(readable)
+
+    await reader.start()
     with pytest.raises(BaseExceptionTest):
-        async with AsyncReader(readable) as reader:
+        await reader.read()
+    await reader.close()
+
+    with pytest.raises(BaseExceptionTest):
+        async with reader:
             await reader.read()
-
-
-@pytest.mark.asyncio
-async def test_base_exception_interrupt():
-    readable = ExceptionReader(BaseExceptionTest())
-    with contextlib.suppress(asyncio.TimeoutError), pytest.raises(BaseExceptionTest):
-        async with asyncio.timeout(1), AsyncReader(readable) as reader:
-            with pytest.raises(BaseExceptionTest):
-                await reader.read()
-            await asyncio.sleep(2)

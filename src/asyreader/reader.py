@@ -14,6 +14,7 @@ from typing import (
     runtime_checkable,
 )
 
+T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -131,16 +132,21 @@ class AsyncReader(Generic[T_co]):
         self._start_fut = concurrent.futures.Future()
         self._is_closing = False
         self._close_fut = concurrent.futures.Future()
-        self._close_fut.add_done_callback(self._close_callback)
 
         self._thread.start()
-        await asyncio.wrap_future(self._start_fut)
+        await self._wrap_future(self._start_fut)
 
     async def read(self, size: int | None = -1) -> T_co:
         """Read size characters from the file.
 
-        Any :exc:`Exception` raised during the read will be propagated here.
-        If :exc:`BaseException` gets raised, the reader will also be closed.
+        Any exception raised during the read will be propagated here.
+        Keep in mind that exceptions do not close the reader so using
+        structured concurrency is recommended to promptly close the reader
+        after an exception, for example::
+
+            async with AsyncReader(readable) as reader, asyncio.TaskGroup() as tg:
+                tg.create_task(do_some_reads(reader))
+                tg.create_task(do_some_other_reads(reader))
 
         :raises ValueError:
             The reader has been closed or is in the process of closing.
@@ -153,13 +159,13 @@ class AsyncReader(Generic[T_co]):
 
         fut = concurrent.futures.Future[T_co]()
         self._read_queue.put_nowait(_ReaderItem(fut, size))
-        return await asyncio.wrap_future(fut)
+        return await self._wrap_future(fut)
 
     async def close(self) -> None:
         """Close the current file and wait for the reader to stop.
 
-        If :exc:`BaseException` was raised in the reader thread,
-        that exception will be propagated here.
+        If a function was given to open the file, any exceptions raised
+        by it will be propagated here.
 
         This method is idempotent.
 
@@ -167,7 +173,7 @@ class AsyncReader(Generic[T_co]):
         if self._close_fut is None:
             return
         elif self._is_closing:
-            return await asyncio.wrap_future(self._close_fut)
+            return await self._wrap_future(self._close_fut)
 
         self._is_closing = True
         self._cancel_queue()
@@ -176,11 +182,11 @@ class AsyncReader(Generic[T_co]):
         # In case the thread is currently reading, try closing the
         # file to interrupt it
         assert self._start_fut is not None
-        await asyncio.wrap_future(self._start_fut)
+        await self._wrap_future(self._start_fut)
         assert self._file is not None
         self._file.close()
 
-        return await asyncio.wrap_future(self._close_fut)
+        return await self._wrap_future(self._close_fut)
 
     def _read_in_background(self) -> None:
         try:
@@ -219,13 +225,10 @@ class AsyncReader(Generic[T_co]):
 
             try:
                 data = self._file.read(item.size)
-            except Exception as e:
-                if not item.fut.done():
-                    item.fut.set_exception(e)
             except BaseException as e:
+                # This exception will be the user's responsibility to deal with
                 if not item.fut.done():
                     item.fut.set_exception(e)
-                raise
             else:
                 if not item.fut.done():
                     item.fut.set_result(data)
@@ -243,16 +246,10 @@ class AsyncReader(Generic[T_co]):
         else:
             self._close_fut.set_exception(exc)
 
-    def _close_callback(self, fut: concurrent.futures.Future) -> None:
-        if fut.exception() is None:
-            return
-        elif isinstance(fut.exception(), Exception):
-            return
-        elif self._task is None:
-            return
-
-        # Interrupt the current task so close() can propagate the exception
-        self._task.get_loop().call_soon_threadsafe(self._task.cancel)
+    def _wrap_future(self, fut: concurrent.futures.Future[T]) -> asyncio.Future[T]:
+        # The thread doesn't need to know of our cancellations
+        # since close() is sufficient to interrupt it
+        return asyncio.shield(asyncio.wrap_future(fut))
 
     def _cancel_queue(self) -> None:
         with contextlib.suppress(queue.Empty):
