@@ -37,7 +37,7 @@ class _ReaderItem(NamedTuple, Generic[T_co]):
 
 
 class AsyncReader(Generic[P, T_co]):
-    """Allows reading from a file in a different thread.
+    r"""Allows reading from a file in a different thread.
 
     >>> reader = AsyncReader(open("file.txt"))
     >>> await reader.start()
